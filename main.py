@@ -5,10 +5,11 @@ import random
 
 from utils import *
 
-url = "http://wled-001.local/json/"
+url = 'http://127.0.0.1:21324/'
+#"http://wled-001.local/json/"
 
 default_brightness = 0.5
-wifi = False
+wifi = True
 
 class Item():
     def __init__(self, number, full):
@@ -48,10 +49,10 @@ class Item():
 
 def update(lights):
 
-    temp = []
+    hexcodes = []
 
     for light in lights:
-        temp.append(light.getHEX())
+        hexcodes.append(light.getHEX())
 
         print(
             visualizer(" {} ".format(light.number), 
@@ -66,7 +67,7 @@ def update(lights):
     payload = {
         "on": True,
         "bri": 255,
-        "seg":{"i":lights}
+        "seg":{"i":hexcodes}
     }
     
     try:
