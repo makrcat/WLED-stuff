@@ -13,8 +13,9 @@ using namespace std;
 using json = nlohmann::json;
 
 const float bdefault = 0.3f;
-const bool wifi = false;
+const bool wifi = true;
 const bool console = true;
+const int delay = 100; // milliseconds
 
 class LED {
 private:
@@ -180,7 +181,7 @@ void rewriteLine(string text) {
     cout << "\r";
     cout << text;
     cout << flush;
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    std::this_thread::sleep_for(std::chrono::milliseconds(delay));
 }
 
 
@@ -209,7 +210,8 @@ void runBSlight(LightArray& arr) {
 // 
 
 int main() {
-    const string URL = "http://wled-001.local/json/";
+    const string URL = "http://127.0.0.1:21324/json"; 
+    // "http://wled-001.local/json/";
     int length;
     cout << "how many: ";
     cin >> length;
