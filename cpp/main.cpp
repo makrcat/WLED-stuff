@@ -29,6 +29,7 @@ ideas:
 const string URL = "http://wled-001.local/json/";
 const float bdefault = 0.3f;
 const bool wifi = false;  
+vector<pair<int, string>> updates;
 
 class LED {
     private:
@@ -80,16 +81,27 @@ vector<string> getHEXarray(vector<LED> lights) {
     }
     return temp;
 }
- */
+*/
 
-void sendArray(const vector<string>& hexarray) {
+
+void sendArray(vector<pair<int, string>>& updates) {
     json payload;
     payload["on"] = true;
     payload["bri"] = 255;
 
     json seg = json::array();
-    for (const string& h : hexarray) seg.push_back(h);
-    payload["seg"]["i"] = seg;
+
+    // ok. its fine. stop being ocd please stop stop stpo stpo postpostpsoek
+    for (auto& u : updates) {
+        seg.push_back(u.first);
+        seg.push_back(u.second);
+    }
+
+    updates.clear();
+
+    payload["seg"] = json::array();
+    payload["seg"].push_back({{"i", seg}});
+
 
     CURL* curl = curl_easy_init();
     if (!curl) return;
@@ -111,33 +123,29 @@ void sendArray(const vector<string>& hexarray) {
     curl_easy_cleanup(curl);
 }
 
-vector<string> hexArray;
-
-void update(const vector<LED>& lights, int n) {
+void visual(vector<LED>& lights, int n) {
 
     /*
     std::cout << "\x1B[2J\x1B[H"; // cursor to top left corner
     std::cout << std::flush; // clear
     */
 
+    this_thread::sleep_for(chrono::milliseconds(100));
+    cout << "\r";
+
     for (int i = 0; i < n; i++) {
         string hex = lights[i].getHEX();
-        if (hexArray[i] != hex) hexArray[i] = hex;
-
         cout << visualizer(" " + to_string(lights[i].getNum()) + " ", hex);
     }
     // cout << endl;
     cout << flush;
-
-    if (!wifi) return;
-    sendArray(hexArray);
 }
 
 template <typename T>
-void shuffle(vector<T>& v) {
+void shuffleV(vector<T>& v) {
     random_device rd;
     mt19937 g(rd());
-    shuffle(v.begin(), v.end(), g);
+    std::shuffle(v.begin(), v.end(), g);
 }
 
 
@@ -146,20 +154,20 @@ void runBubbleSort(vector<LED>& lights, int n) {
         for (int j = 0; j < n - i - 1; j++) {
             if (lights[j].getNum() > lights[j + 1].getNum()) {
                 swap(lights[j], lights[j + 1]);
-                update(lights, n);
+                visual(lights, n);
             }
         }
     }
 }
 
-void clear() {
-    this_thread::sleep_for(chrono::milliseconds(100));
-    cout << "\r"; 
+void commitAndSend(int i, string newHEX) {
+    updates.emplace_back(i, newHEX);
+
+    if (!wifi) return;
+    sendArray(updates);
 }
 
 void runBSlight(vector<LED>& lights, int n) {
-
-    cout << "" << endl;
 
     for (int i = 0; i < n - 1; i++) {
         for (int j = 0; j < n - i - 1; j++) {
@@ -167,23 +175,28 @@ void runBSlight(vector<LED>& lights, int n) {
             LED& b = lights[j + 1];
 
             a.glow();
-            update(lights, n);
-            clear();
+            commitAndSend(j, a.getHEX());
+            visual(lights, n);
 
             b.glow();
-            update(lights, n);
-            clear();
+            commitAndSend(j + 1, b.getHEX());
+            visual(lights, n);
 
             if (a.getNum() > b.getNum()) {
                 swap(a, b);
-                update(lights, n);
-                clear();
+                commitAndSend(j, a.getHEX());
+                commitAndSend(j + 1, b.getHEX());
+
+                visual(lights, n);
             }
 
+            // yes I know they point to each other now, but it's ok lol
             a.unglow();
+            commitAndSend(j, a.getHEX());
             b.unglow();
-            update(lights, n);
-            clear();
+            commitAndSend(j + 1, b.getHEX());
+
+            visual(lights, n);
         }
     }
 }
@@ -195,14 +208,13 @@ int main() {
     cin >> length;
 
     vector<LED> lights;
-    hexArray.resize(length);
-
+    updates.reserve(length);
     lights.reserve(length);
     for (int i = 0; i < length; i++) {
         lights.emplace_back(i, length);
     }
 
-    shuffle(lights);
+    shuffleV(lights);
     runBSlight(lights, length);
 
     return 0;
