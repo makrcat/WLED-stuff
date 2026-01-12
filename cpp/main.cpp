@@ -24,6 +24,7 @@ private:
     int number;
     float hue;
     string hex;
+    int full;
 
     void updateHEX() {
         hex = numberToHEX(hue, l, s);
@@ -32,6 +33,7 @@ private:
 public:
     LED(int num, int full) : l(bdefault), s(0.6f), number(num) {
         hue = static_cast<float>(num) / full;
+        this->full = full;
         updateHEX();
     }
 
@@ -45,9 +47,16 @@ public:
         s = 0.6f; 
         updateHEX(); 
     }
-    void setHue(float h) { 
+
+    void setHue(float h) {  // idk why
         hue = h; 
         updateHEX(); 
+    }
+
+    void setNum(int num) {
+        number = num;
+        hue = static_cast<float>(num) / full;
+        updateHEX();
     }
 
     int getNum() const { 
@@ -73,6 +82,7 @@ private:
     }
 
     void sendArray(vector<pair<int, string>>& updates) {
+        // this only sends the updates!! which means it doesn't rewrite every LED. idk how much of a difference this will make to be honest but yeah
         json payload;
         payload["on"] = true;
         payload["bri"] = 255;
@@ -110,6 +120,7 @@ private:
 
 
 
+
 public:
     LightArray(int length, const string URL) {
         this->URL = URL;
@@ -136,6 +147,7 @@ public:
         commitUpdate(i);
     }
 
+
     void glow(int i) {
         lights[i].glow();
         commitUpdate(i);
@@ -150,6 +162,37 @@ public:
         std::swap(lights[i], lights[j]);
         commitUpdate(i);
         commitUpdate(j);
+    }
+
+    void move(int pos1, int pos2) {
+        LED temp = lights[pos1];
+
+        if (pos1 < pos2) {
+            // shift elements left
+            for (int i = pos1; i < pos2; i++) {
+                lights[i] = lights[i + 1];
+                commitUpdate(i);
+            }
+            lights[pos2] = temp;
+            commitUpdate(pos2);
+        } else { 
+            // pos1 > pos2
+            // shift elements right
+            for (int i = pos1; i > pos2; i--) {
+                lights[i] = lights[i - 1];
+                commitUpdate(i);
+            }
+            lights[pos2] = temp;
+            commitUpdate(pos2);
+        }
+
+    }
+
+    void insert(LED l, int pos) { 
+        lights.insert(lights.begin() + pos, l);
+        for (int i = pos; i < lights.size(); i++) {
+            commitUpdate(i);
+        }
     }
 
     void shuffle() {
@@ -201,13 +244,106 @@ void runBSlight(LightArray& arr) {
 
             arr.unglow(j);
             arr.unglow(j + 1);
-              rewriteLine(arr.getVisual());
+            rewriteLine(arr.getVisual());
 
         }
     }
 }
 
 // 
+void runInsertion(LightArray& arr) {
+    int n = arr.size();
+
+    for (int i = 1; i < n; i++) {
+        arr.glow(i);
+        rewriteLine(arr.getVisual());
+        int j = i;
+
+        while (j > 0 && arr[j - 1].getNum() > arr[j].getNum()) {
+            arr.glow(j - 1);
+            rewriteLine(arr.getVisual());
+
+            arr.move(j, j - 1);
+            rewriteLine(arr.getVisual());
+
+            arr.unglow(j);
+            arr.unglow(j - 1);
+            rewriteLine(arr.getVisual());
+
+            j--;
+        }
+
+        arr.unglow(j);
+        rewriteLine(arr.getVisual());
+    }
+}
+
+// 
+
+void merge(LightArray& arr, int left, int mid, int right) {
+    int n1 = mid - left + 1;
+    int n2 = right - mid;
+
+    vector<int> L(n1);
+    vector<int> R(n2);
+    for (int i = 0; i < n1; i++) L[i] = arr[left + i].getNum();
+    for (int i = 0; i < n2; i++) R[i] = arr[mid + 1 + i].getNum();
+
+    int i = 0, j = 0, k = left;
+
+    while (i < n1 && j < n2) {
+        arr.glow(k);
+        rewriteLine(arr.getVisual());
+
+        if (L[i] <= R[j]) {
+            arr[k].setNum(L[i]);
+            i++;
+        } else {
+            arr[k].setNum(R[j]);
+            j++;
+        }
+
+        rewriteLine(arr.getVisual());
+        arr.unglow(k);
+        k++;
+    }
+
+    while (i < n1) {
+        arr.glow(k);
+        rewriteLine(arr.getVisual());
+        arr[k].setNum(L[i]);
+        rewriteLine(arr.getVisual());
+        arr.unglow(k);
+        i++; 
+        k++;
+    }
+
+    while (j < n2) {
+        arr.glow(k);
+        rewriteLine(arr.getVisual());
+        arr[k].setNum(R[j]);
+        rewriteLine(arr.getVisual());
+        arr.unglow(k);
+        j++; 
+        k++;
+    }
+}
+
+void mergeSort(LightArray& arr, int left, int right) {
+    if (left >= right) return;
+
+    int mid = left + (right - left) / 2;
+
+    mergeSort(arr, left, mid);
+    mergeSort(arr, mid + 1, right);
+    merge(arr, left, mid, right);
+}
+
+void runMerge(LightArray& arr) {
+    mergeSort(arr, 0, arr.size() - 1);
+}
+
+
 
 int main() {
     const string URL = "http://127.0.0.1:21324/json"; 
@@ -219,7 +355,7 @@ int main() {
     LightArray lights(length, URL);
 
     lights.shuffle();
-    runBSlight(lights);
+    runMerge(lights);
 
     return 0;
 }

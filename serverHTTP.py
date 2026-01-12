@@ -41,7 +41,7 @@ def update_leds():
 
         print_leds(leds)
 
-        return "OK received"
+        return "OK"
     except Exception as e:
         print("Error:", e)
         return "Error", 400
