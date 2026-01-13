@@ -134,13 +134,8 @@ private:
     int N;
 
     void commitUpdate(int i) {
-        // add to update
         updates.emplace_back(i, lights[i].getHEX());
-        // try to send? if wifi: or else, updates just kinda stack up
     }
-
-
-
 
 public:
     LightArray(int length) {
@@ -158,15 +153,11 @@ public:
         return N;
     }
 
-    LED& operator[](int i) {
-        return lights[i]; 
-    }
-
+    // mutation functions with automatic commit
     void setHue(int i, float h) {
         lights[i].setHue(h);
         commitUpdate(i);
     }
-
 
     void glow(int i) {
         lights[i].glow();
@@ -185,31 +176,28 @@ public:
     }
 
     void move(int pos1, int pos2) {
-        LED temp = lights[pos1];
+        LED temp = std::move(lights[pos1]);
 
         if (pos1 < pos2) {
-            // shift elements left
             for (int i = pos1; i < pos2; i++) {
-                lights[i] = lights[i + 1];
+                lights[i] = std::move(lights[i + 1]);
                 commitUpdate(i);
             }
-            lights[pos2] = temp;
+            lights[pos2] = std::move(temp);
             commitUpdate(pos2);
-        } else { 
-            // pos1 > pos2
-            // shift elements right
+        } else if (pos1 > pos2) {
             for (int i = pos1; i > pos2; i--) {
-                lights[i] = lights[i - 1];
+                lights[i] = std::move(lights[i - 1]);
                 commitUpdate(i);
             }
-            lights[pos2] = temp;
+            lights[pos2] = std::move(temp);
             commitUpdate(pos2);
         }
-
     }
 
     void insert(LED l, int pos) { 
         lights.insert(lights.begin() + pos, l);
+        N = lights.size(); // fix N to match vector size
         for (int i = pos; i < lights.size(); i++) {
             commitUpdate(i);
         }
@@ -220,15 +208,13 @@ public:
         mt19937 g(rd());
         std::shuffle(lights.begin(), lights.end(), g);
 
-        // commit all positions after shuffle
         for (int i = 0; i < N; i++) {
             commitUpdate(i);
         }
     }
 
-    LED& get(int i) { return lights[i]; }
-
-    // utility
+    // read-only access
+    const LED& get(int i) const { return lights[i]; }
 
     string getVisual() const {
         string V;
@@ -258,7 +244,7 @@ void runBSlight(LightArray& arr) {
         for (int j = 0; j < n - i - 1; j++) {
             rewriteLine(arr.getVisual());
 
-            if (arr[j].getNum() > arr[j + 1].getNum()) {
+            if (arr.get(j).getNum() > arr.get(j + 1).getNum()) {
                 arr.swap(j, j + 1);
                 arr.send();
 
@@ -275,7 +261,7 @@ void runInsertion(LightArray& arr) {
     for (int i = 1; i < n; i++) {
         int j = i;
 
-        while (j > 0 && arr[j - 1].getNum() > arr[j].getNum()) {
+        while (j > 0 && arr.get(j - 1).getNum() > arr.get(j).getNum()) {
             arr.move(j, j - 1);
             arr.send();
             rewriteLine(arr.getVisual());
