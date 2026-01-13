@@ -12,13 +12,11 @@
 using namespace std;
 using json = nlohmann::json;
 
-const float bdefault = 0.5f;
+const float bdefault = 0.3f;
 const bool wifi = true;
 const bool console = true;
-const int delay = 50; // milliseconds
-const string URL = "http://127.0.0.1:21324/json";
-
-// "http://192.168.3.40/json";
+const int delay = 100; // milliseconds
+const string URL = "http://wled-001.local/json";
 
 CURL* curl = nullptr;
 struct curl_slist* headers = nullptr;
@@ -137,9 +135,8 @@ private:
         // add to update
         updates.emplace_back(i, lights[i].getHEX());
         // try to send? if wifi: or else, updates just kinda stack up
+        if (wifi) sendArray(updates);
     }
-
-
 
 
 public:
@@ -238,17 +235,13 @@ public:
         }
         return V;
     }
-
-    void send() {
-        if (wifi) sendArray(updates);
-    }
 };
 
 void rewriteLine(string text) {
     cout << "\r";
     cout << text;
     cout << flush;
-    std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+    //std::this_thread::sleep_for(std::chrono::milliseconds(delay));
 }
 
 
@@ -256,14 +249,20 @@ void runBSlight(LightArray& arr) {
     int n = arr.size();
     for (int i = 0; i < n - 1; i++) {
         for (int j = 0; j < n - i - 1; j++) {
+            arr.glow(j);
+            rewriteLine(arr.getVisual());
+            arr.glow(j + 1);
             rewriteLine(arr.getVisual());
 
             if (arr[j].getNum() > arr[j + 1].getNum()) {
                 arr.swap(j, j + 1);
-                arr.send();
-
                 rewriteLine(arr.getVisual());
             }
+
+            arr.unglow(j);
+            arr.unglow(j + 1);
+            rewriteLine(arr.getVisual());
+
         }
     }
 }
@@ -273,35 +272,108 @@ void runInsertion(LightArray& arr) {
     int n = arr.size();
 
     for (int i = 1; i < n; i++) {
+        // arr.glow(i);
+        rewriteLine(arr.getVisual());
         int j = i;
 
         while (j > 0 && arr[j - 1].getNum() > arr[j].getNum()) {
-            arr.move(j, j - 1);
-            arr.send();
+            // arr.glow(j - 1);
             rewriteLine(arr.getVisual());
+
+            arr.move(j, j - 1);
+            rewriteLine(arr.getVisual());
+
+            // arr.unglow(j);
+            // arr.unglow(j - 1);
+            rewriteLine(arr.getVisual());
+
             j--;
         }
 
-        arr.send();
+        // arr.unglow(j);
         rewriteLine(arr.getVisual());
     }
 }
 
 // 
 
+void merge(LightArray& arr, int left, int mid, int right) {
+    int n1 = mid - left + 1;
+    int n2 = right - mid;
+
+    vector<int> L(n1);
+    vector<int> R(n2);
+    for (int i = 0; i < n1; i++) L[i] = arr[left + i].getNum();
+    for (int i = 0; i < n2; i++) R[i] = arr[mid + 1 + i].getNum();
+
+    int i = 0, j = 0, k = left;
+
+    while (i < n1 && j < n2) {
+        // arr.glow(k);
+        rewriteLine(arr.getVisual());
+
+        if (L[i] <= R[j]) {
+            arr[k].setNum(L[i]);
+            i++;
+        } else {
+            arr[k].setNum(R[j]);
+            j++;
+        }
+
+        rewriteLine(arr.getVisual());
+        // arr.unglow(k);
+        k++;
+    }
+
+    while (i < n1) {
+        // arr.glow(k);
+        rewriteLine(arr.getVisual());
+        arr[k].setNum(L[i]);
+        rewriteLine(arr.getVisual());
+        // arr.unglow(k);
+        i++; 
+        k++;
+    }
+
+    while (j < n2) {
+        // arr.glow(k);
+        rewriteLine(arr.getVisual());
+        arr[k].setNum(R[j]);
+        rewriteLine(arr.getVisual());
+        // arr.unglow(k);
+        j++; 
+        k++;
+    }
+}
+
+void mergeSort(LightArray& arr, int left, int right) {
+    if (left >= right) return;
+
+    int mid = left + (right - left) / 2;
+
+    mergeSort(arr, left, mid);
+    mergeSort(arr, mid + 1, right);
+    merge(arr, left, mid, right);
+}
+
+void runMerge(LightArray& arr) {
+    mergeSort(arr, 0, arr.size() - 1);
+}
+
+
+
 int main() {
     // "http://wled-001.local/json/";
     initHTTP(); 
-    int length = 20;
+    int length;
+    cout << "how many: ";
+    cin >> length;
 
     LightArray lights(length);
 
-    clearLights();
     lights.shuffle();
-    lights.send();
-
-
-    runInsertion(lights);
+    clearLights();
+    // runMerge(lights);
 
     curl_slist_free_all(headers);
     curl_easy_cleanup(curl);

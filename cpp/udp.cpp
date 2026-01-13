@@ -18,8 +18,8 @@ int main() {
     LED leds[NUM_LEDS];
     unsigned char frame[NUM_LEDS * 3];
 
-    const char* WLED_IP = "192.168.1.100"; 
-    const int WLED_PORT = 21324;
+    const char* WLED_IP = "192.168.3.40";
+    const int WLED_PORT = 4048;
 
     int sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (sock < 0) {
@@ -30,21 +30,21 @@ int main() {
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_port = htons(WLED_PORT);
-    inet_pton(AF_INET, WLED_IP, &addr.sin_addr);
+    if (inet_pton(AF_INET, WLED_IP, &addr.sin_addr) <= 0) {
+        cerr << "Invalid IP address\n";
+    for (int i = 0; i < NUM_LEDS; i++) {
+        leds[i].r = 255;
+        leds[i].g = 0;
+        leds[i].b = 0;
+    }
 
     for (int i = 0; i < NUM_LEDS; i++) {
-
-        if (i != 0) {
-            frame[3 * i - 3] = 0;
-            frame[3 * i - 2] = 0;
-            frame[3 * i - 1] = 0;
-        }
-
         frame[3 * i] = leds[i].r;
         frame[3 * i + 1] = leds[i].g;
         frame[3 * i + 2] = leds[i].b;
+    }
 
-        sendto(sock, frame, sizeof(frame), 0, (struct sockaddr*)&addr, sizeof(addr));
+    sendto(sock, frame, sizeof(frame), 0, (struct sockaddr*)&addr, sizeof(addr));
 
         this_thread::sleep_for(chrono::milliseconds(100));
     }

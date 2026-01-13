@@ -29,13 +29,16 @@ def update_leds():
     try:
         payload = request.get_json()  
         # parse
-        updates = payload["seg"][0]["i"]  
+        updates = payload["seg"][0]["i"]
         # [index1, hex1, index2, hex2, ...]
 
 
         # fill hash map
-        for i in range(0, len(updates), 2):
+        for i in range(0, len(updates), 2): # shoudl always be even
+
             idx = updates[i]
+            if idx >= NUM_LEDS:
+                continue
             hexcode = updates[i + 1]
             leds[idx] = hexcode
 
